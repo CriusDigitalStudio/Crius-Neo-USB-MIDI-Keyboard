@@ -1,0 +1,115 @@
+// MICROCONTROLLER
+#define ATMEGA32U4 1 
+
+// LIBRARIES
+#include <MIDIUSB.h>
+
+// BUTTONS
+const int BUTTONS = 12;
+const int BUTTON_PIN[BUTTONS] = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13};
+
+int buttonCState[BUTTONS] = {};
+int buttonPState[BUTTONS] = {};
+#define pin13 1
+byte pin13index = 13;
+
+// DEBOUNCE
+unsigned long lastDebounceTime[BUTTONS] = {0};
+unsigned long debounceDelay = 80;
+
+// MIDI
+byte midiCh = 1;
+byte note = 48;
+
+// SETUP
+void setup() {
+Serial.begin(31250);
+
+#ifdef DEBUG
+Serial.println("Debug mode");
+Serial.println();
+#endif
+
+
+for (int i = 0; i < BUTTONS; i++) {
+pinMode(BUTTON_PIN[i], INPUT_PULLUP);
+}
+
+#ifdef pin13 
+pinMode(BUTTON_PIN[pin13index], INPUT);
+#endif
+
+}
+
+// LOOP
+void loop() {
+buttons();
+ 
+}
+
+// BUTTONS
+void buttons() {
+
+  for (int i = 0; i < BUTTONS; i++) {
+
+    buttonCState[i] = digitalRead(BUTTON_PIN[i]);
+
+#ifdef pin13
+
+if (i == pin13index) {
+buttonCState[i] = !buttonCState[i];
+}
+#endif
+
+  if ((millis() - lastDebounceTime[i]) > debounceDelay) {
+
+    if (buttonPState[i] != buttonCState[i]) {
+        lastDebounceTime[i] = millis();
+
+      if (buttonCState[i] == LOW) {
+
+         
+#ifdef ATMEGA32U4
+
+noteOn(midiCh, note + i, 127);
+MidiUSB.flush();
+
+#elif DEBUG
+
+Serial.print(i);
+Serial.println(": button on");
+#endif
+}
+
+else {
+
+#ifdef ATMEGA32U4
+
+noteOn(midiCh, note + i, 0);
+MidiUSB.flush();
+
+#elif DEBUG
+Serial.print(i);
+Serial.println(": button off");
+#endif
+}
+buttonPState[i] = buttonCState[i];
+      }
+    }
+  }
+}
+
+#ifdef ATMEGA32U4
+
+// MIDIUSB Library functions
+void noteOn(byte channel, byte pitch, byte velocity) {
+  midiEventPacket_t noteOn = {0x09, 0x90 | channel, pitch, velocity};
+  MidiUSB.sendMIDI(noteOn);
+}
+
+void noteOff(byte channel, byte pitch, byte velocity) {
+  midiEventPacket_t noteOff = {0x08, 0x80 | channel, pitch, velocity};
+  MidiUSB.sendMIDI(noteOff);
+}
+
+#endif
